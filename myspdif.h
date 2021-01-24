@@ -30,8 +30,8 @@
 #define BURST_HEADER_SIZE 0x8
 #define SPDIF_MAX_OFFSET 16384
 
-/*
-enum myIEC61937DataType {
+
+enum IEC61937DataType {
     IEC61937_AC3                = 0x01,          ///< AC-3 data
     IEC61937_MPEG1_LAYER1       = 0x04,          ///< MPEG-1 layer 1
     IEC61937_MPEG1_LAYER23      = 0x05,          ///< MPEG-1 layer 2 or 3 data or MPEG-2 without extension
@@ -53,14 +53,14 @@ enum myIEC61937DataType {
     IEC61937_EAC3               = 0x15,          ///< E-AC-3 data
     IEC61937_TRUEHD             = 0x16,          ///< TrueHD data
 };
-*/
-/*
+
+
 static const uint16_t spdif_mpeg_pkt_offset[2][3] = {
     //LAYER1  LAYER2  LAYER3
     { 3072,    9216,   4608 }, // MPEG2 LSF
     { 1536,    4608,   4608 }, // MPEG1
 };
-*/
+
 
 void my_spdif_bswap_buf16(uint16_t *dst, const uint16_t *src, int w);
 int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,

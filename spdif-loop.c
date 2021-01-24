@@ -11,7 +11,6 @@
 #include <libavdevice/avdevice.h>
 #include <ao/ao.h>
 #include <libavformat/avio.h>
-#include <libavformat/spdif.h>
 
 #include "resample.h"
 #include "helper.h"

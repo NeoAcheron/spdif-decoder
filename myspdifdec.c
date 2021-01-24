@@ -25,12 +25,16 @@
  * @author Anssi Hannula
  */
 
+#include <libavcodec/avcodec.h>
+#include <libavcodec/adts_parser.h>
 #include <libavformat/avformat.h>
-#include <libavformat/spdif.h>
+#include <libavutil/bswap.h>
+
 #include "myspdif.h"
-#include <libavcodec/ac3.h>
-#include "libavcodec/adts_parser.h"
-#include "libavutil/bswap.h"
+
+// From libavcodec/ac3.h because the Arch distro version of FFMPEG doesn't include it
+#define AC3_MAX_BLOCKS    6
+#define AC3_FRAME_SIZE (AC3_MAX_BLOCKS * 256)
 
 static int spdif_get_offset_and_codec(AVFormatContext *s,
                                       enum IEC61937DataType data_type,
@@ -136,7 +140,6 @@ int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,
     pkt->pos = avio_tell(pb) - BURST_HEADER_SIZE;
 
     if (avio_read(pb, pkt->data, pkt->size) < pkt->size) {
-        av_free_packet(pkt);
         return AVERROR_EOF;
     }
     my_spdif_bswap_buf16((uint16_t *)pkt->data, (uint16_t *)pkt->data, pkt->size >> 1);
@@ -144,7 +147,6 @@ int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,
     ret = spdif_get_offset_and_codec(s, data_type, pkt->data,
                                      &offset, &codec_id);
     if (ret) {
-        av_free_packet(pkt);
         return ret;
     }
 
@@ -155,7 +157,6 @@ int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,
         /* first packet, create a stream */
         AVStream *st = avformat_new_stream(s, NULL);
         if (!st) {
-            av_free_packet(pkt);
             return AVERROR(ENOMEM);
         }
         st->codec->codec_type = AVMEDIA_TYPE_AUDIO;

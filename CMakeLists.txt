@@ -16,12 +16,12 @@ target_include_directories (spdif-decoder
     PUBLIC ${FFMPEG}
 )
 
-FIND_LIBRARY(libavcodec avcodec ${FFMPEG}/libavcodec)
-FIND_LIBRARY(libavformat avformat ${FFMPEG}/libavformat)
-FIND_LIBRARY(libavdevice avdevice ${FFMPEG}/libavdevice)
-FIND_LIBRARY(libavutil avutil ${FFMPEG}/libavutil)
-FIND_LIBRARY(libswresample swresample ${FFMPEG}/libswresample)
-FIND_LIBRARY(libavfilter avfilter ${FFMPEG}/libavfilter)
+FIND_LIBRARY(libavcodec avcodec)
+FIND_LIBRARY(libavformat avformat)
+FIND_LIBRARY(libavdevice avdevice)
+FIND_LIBRARY(libavutil avutil)
+FIND_LIBRARY(libswresample swresample)
+FIND_LIBRARY(libavfilter avfilter)
 TARGET_LINK_LIBRARIES(spdif-decoder 
     ${libavcodec}
     ${libavformat}
