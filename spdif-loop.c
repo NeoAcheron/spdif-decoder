@@ -33,7 +33,7 @@ usage(void)
 {
 	fprintf(stderr,
 			"usage:\n"
-			"  spdif-loop [-t | -i <hw:alsa-input-dev>] -d <alsa|pulse> -o <output-dev>\n");
+			"  spdif-loop [-t | -i <hw:alsa-input-dev>] -d <alsa|pulse> -o <surround-output-dev> [-p <stereo-passthrough-dev>]\n");
 	exit(1);
 }
 
@@ -102,8 +102,9 @@ int main(int argc, char **argv)
 	char *alsa_dev_name = NULL;
 	char *out_driver_name = NULL;
 	char *out_dev_name = NULL;
+	char *out_dev_passthrough_name = NULL;
 	int opt;
-	for (opt = 0; (opt = getopt(argc, argv, "d:hi:o:tv")) != -1;)
+	for (opt = 0; (opt = getopt(argc, argv, "d:hi:o:p:tv")) != -1;)
 	{
 		switch (opt)
 		{
@@ -115,6 +116,9 @@ int main(int argc, char **argv)
 			break;
 		case 'o':
 			out_dev_name = optarg;
+			break;
+		case 'p':
+			out_dev_passthrough_name = optarg;
 			break;
 		case 't':
 			opt_test = 1;
@@ -149,6 +153,13 @@ int main(int argc, char **argv)
 	{
 		if (!ao_append_option(&out_dev_opts, "dev", out_dev_name))
 			errx(1, "cannot set output device `%s'", out_dev_name);
+	}
+
+	ao_option *out_dev_passthrough_opts = NULL;
+	if (out_dev_passthrough_name)
+	{
+		if (!ao_append_option(&out_dev_passthrough_opts, "dev", out_dev_passthrough_name))
+			errx(1, "cannot set passthrough device `%s'", out_dev_passthrough_name);
 	}
 
 	int out_driver_id = ao_default_driver_id();
@@ -230,7 +241,6 @@ int main(int argc, char **argv)
 	AVPacket pkt = {.size = 0, .data = NULL};
 	av_init_packet(&pkt);
 
-
 	CodecHandler codec_handler_st;
 	CodecHandler_init(&codec_handler_st);
 	printf("start loop\n");
@@ -288,11 +298,24 @@ int main(int argc, char **argv)
 		// Initialize the output device
 		if (!out_dev)
 		{
-			out_dev = open_output(out_driver_id,
-								  out_dev_opts,
-								  av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * 8,
-								  codec_handler_st.currentChannelCount,
-								  codec_handler_st.currentSampleRate);
+			if (out_dev_passthrough_opts && codec_handler_st.currentCodecID == AV_CODEC_ID_NONE)
+			{
+				printf("Using passthrough output device: %s\n", out_dev_passthrough_name);
+				out_dev = open_output(out_driver_id,
+									out_dev_passthrough_opts,
+									av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * 8,
+									codec_handler_st.currentChannelCount,
+									codec_handler_st.currentSampleRate);
+			}
+			else
+			{
+				printf("Using primary output device: %s\n", out_dev_name);
+				out_dev = open_output(out_driver_id,
+									out_dev_opts,
+									av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * 8,
+									codec_handler_st.currentChannelCount,
+									codec_handler_st.currentSampleRate);
+			}
 			if (!out_dev)
 				errx(1, "cannot open audio output");
 		}
