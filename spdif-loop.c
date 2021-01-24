@@ -17,8 +17,6 @@
 #include "myspdif.h"
 #include "codechandler.h"
 
-//#define DEBUG
-//#define IO_BUFFER_SIZE	SPDIF_MAX_OFFSET// ((8+1792+4344)*1)
 #define IO_BUFFER_SIZE ((8 + 1792 + 4344) * 1)
 
 struct alsa_read_state
@@ -183,7 +181,8 @@ int main(int argc, char **argv)
 	AVFormatContext *alsa_ctx = NULL;
 	ao_device *out_dev = NULL;
 
-	uint8_t *resamples = malloc(1 * 1024 * 1024);
+	uint8_t *audio_frame_data_pu8 = malloc(1 * 1024 * 1024);
+	uint32_t audio_frame_size_pu32 = 0;
 
 	if (0)
 	{
@@ -231,77 +230,80 @@ int main(int argc, char **argv)
 	AVPacket pkt = {.size = 0, .data = NULL};
 	av_init_packet(&pkt);
 
-	uint32_t howmuch = 0;
 
-	CodecHandler codecHanlder;
-	CodecHandler_init(&codecHanlder);
+	CodecHandler codec_handler_st;
+	CodecHandler_init(&codec_handler_st);
 	printf("start loop\n");
 	while (1)
 	{
-		int r = my_spdif_read_packet(spdif_ctx, &pkt, resamples, IO_BUFFER_SIZE, &howmuch);
+		// Read data from the SPDIF stream
+		int r = my_spdif_read_packet(spdif_ctx, &pkt, audio_frame_data_pu8, IO_BUFFER_SIZE, &audio_frame_size_pu32);
 
+		// If the read returns zero, it means a codec was found and the audio can be played from the packet
 		if (r == 0)
 		{
-			if (CodecHandler_loadCodec(&codecHanlder, spdif_ctx) != 0)
+			if (CodecHandler_loadCodec(&codec_handler_st, spdif_ctx) != 0)
 			{
-				printf("Could not load codec %s.\n", avcodec_get_name(codecHanlder.currentCodecID));
+				printf("Could not load codec %s.\n", avcodec_get_name(codec_handler_st.currentCodecID));
 				goto retry;
 			}
 
-			if (CodecHandler_decodeCodec(&codecHanlder, &pkt, resamples, &howmuch) == 1)
+			if (CodecHandler_decodeCodec(&codec_handler_st, &pkt, audio_frame_data_pu8, &audio_frame_size_pu32) == 1)
 			{
-				//channel count has changed
-				//close out_dev
+				// Force the output device to re-initialize on the next audio frame, in order to match the new codec parameters
 				if (out_dev)
 				{
 					ao_close(out_dev);
 					out_dev = NULL;
 				}
-				printf("Detected S/PDIF codec %s\n", avcodec_get_name(codecHanlder.currentCodecID));
+				printf("Detected S/PDIF codec %s\n", avcodec_get_name(codec_handler_st.currentCodecID));
 			}
 			if (pkt.size != 0)
 			{
+				// This is generally a packet error. All data contained in the packet sould have been decoded
 				printf("still some bytes left %d\n", pkt.size);
 			}
 		}
-		else
+		else // The data read from the stream didn't have any header information, so we're going to assume its raw uncompressed stereo PCM data
 		{
-			if (codecHanlder.currentCodecID != AV_CODEC_ID_NONE ||
-				codecHanlder.currentChannelCount != 2 ||
-				codecHanlder.currentSampleRate != 48000)
+			if (codec_handler_st.currentCodecID != AV_CODEC_ID_NONE ||
+				codec_handler_st.currentChannelCount != 2 ||
+				codec_handler_st.currentSampleRate != 48000)
 			{
-
 				printf("Detected S/PDIF uncompressed audio\n");
 
+				// Force the output device to re-initialize on the next audio frame, in order to match the new codec parameters
 				if (out_dev)
 				{
 					ao_close(out_dev);
 					out_dev = NULL;
 				}
 			}
-			codecHanlder.currentCodecID = AV_CODEC_ID_NONE;
-			codecHanlder.currentChannelCount = 2;
-			codecHanlder.currentSampleRate = 48000;
-			codecHanlder.currentChannelLayout = 0;
+			codec_handler_st.currentCodecID = AV_CODEC_ID_NONE;
+			codec_handler_st.currentChannelCount = 2;
+			codec_handler_st.currentSampleRate = 48000;
+			codec_handler_st.currentChannelLayout = 0;
 		}
 
+		// Initialize the output device
 		if (!out_dev)
 		{
 			out_dev = open_output(out_driver_id,
 								  out_dev_opts,
 								  av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * 8,
-								  codecHanlder.currentChannelCount,
-								  codecHanlder.currentSampleRate);
+								  codec_handler_st.currentChannelCount,
+								  codec_handler_st.currentSampleRate);
 			if (!out_dev)
 				errx(1, "cannot open audio output");
 		}
-		//found wav
-		if (!ao_play(out_dev, resamples, howmuch))
+
+		// Play the audio frame
+		if (!ao_play(out_dev, audio_frame_data_pu8, audio_frame_size_pu32))
 		{
 			printf("Could not play audio to output device...");
 			goto retry;
 		}
 	}
-	CodecHandler_deinit(&codecHanlder);
+	CodecHandler_deinit(&codec_handler_st);
 	return (0);
 }
