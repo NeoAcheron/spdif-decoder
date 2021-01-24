@@ -33,7 +33,7 @@
 #include "myspdif.h"
 
 // From libavcodec/ac3.h because the Arch distro version of FFMPEG doesn't include it
-#define AC3_MAX_BLOCKS    6
+#define AC3_MAX_BLOCKS 6
 #define AC3_FRAME_SIZE (AC3_MAX_BLOCKS * 256)
 
 static int spdif_get_offset_and_codec(AVFormatContext *s,
@@ -45,7 +45,8 @@ static int spdif_get_offset_and_codec(AVFormatContext *s,
     uint8_t frames;
     int ret;
 
-    switch (data_type & 0xff) {
+    switch (data_type & 0xff)
+    {
     case IEC61937_AC3:
         *offset = AC3_FRAME_SIZE << 2;
         *codec = AV_CODEC_ID_AC3;
@@ -64,7 +65,8 @@ static int spdif_get_offset_and_codec(AVFormatContext *s,
         break;
     case IEC61937_MPEG2_AAC:
         ret = av_adts_header_parse(buf, &samples, &frames);
-        if (ret < 0) {
+        if (ret < 0)
+        {
             if (s) /* be silent during a probe */
                 av_log(s, AV_LOG_ERROR, "Invalid AAC packet in IEC 61937\n");
             return ret;
@@ -103,7 +105,7 @@ static int spdif_get_offset_and_codec(AVFormatContext *s,
 }
 
 int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,
-		uint8_t * garbagebuffer, int garbagebuffersize, int * garbagebufferfilled)
+                         uint8_t *garbagebuffer, int garbagebuffersize, int *garbagebufferfilled)
 {
     AVIOContext *pb = s->pb;
     enum IEC61937DataType data_type;
@@ -111,20 +113,25 @@ int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,
     uint32_t state = 0;
     int pkt_size_bits, offset, ret;
     *garbagebufferfilled = 0;
-    while (state != (AV_BSWAP16C(SYNCWORD1) << 16 | AV_BSWAP16C(SYNCWORD2))) {
-    	if(*garbagebufferfilled < garbagebuffersize){
-    		*garbagebuffer = avio_r8(pb);
-    		(*garbagebufferfilled)++;
+    while (state != (AV_BSWAP16C(SYNCWORD1) << 16 | AV_BSWAP16C(SYNCWORD2)))
+    {
+        if (*garbagebufferfilled < garbagebuffersize)
+        {
+            *garbagebuffer = avio_r8(pb);
+            (*garbagebufferfilled)++;
 
-    		state = (state << 8) | *garbagebuffer;
-    		garbagebuffer++;
+            state = (state << 8) | *garbagebuffer;
+            garbagebuffer++;
 
-    		if (avio_feof(pb)){
+            if (avio_feof(pb))
+            {
                 return AVERROR_EOF;
             }
-    	}else{
-    		return AVERROR_STREAM_NOT_FOUND;
-    	}
+        }
+        else
+        {
+            return AVERROR_STREAM_NOT_FOUND;
+        }
     }
     *garbagebufferfilled -= 4;
     data_type = avio_rl16(pb);
@@ -139,29 +146,35 @@ int my_spdif_read_packet(AVFormatContext *s, AVPacket *pkt,
 
     pkt->pos = avio_tell(pb) - BURST_HEADER_SIZE;
 
-    if (avio_read(pb, pkt->data, pkt->size) < pkt->size) {
+    if (avio_read(pb, pkt->data, pkt->size) < pkt->size)
+    {
         return AVERROR_EOF;
     }
     my_spdif_bswap_buf16((uint16_t *)pkt->data, (uint16_t *)pkt->data, pkt->size >> 1);
 
     ret = spdif_get_offset_and_codec(s, data_type, pkt->data,
                                      &offset, &codec_id);
-    if (ret) {
+    if (ret)
+    {
         return ret;
     }
 
     /* skip over the padding to the beginning of the next frame */
     avio_skip(pb, offset - pkt->size - BURST_HEADER_SIZE);
 
-    if (!s->nb_streams) {
+    if (!s->nb_streams)
+    {
         /* first packet, create a stream */
         AVStream *st = avformat_new_stream(s, NULL);
-        if (!st) {
+        if (!st)
+        {
             return AVERROR(ENOMEM);
         }
         st->codec->codec_type = AVMEDIA_TYPE_AUDIO;
         st->codec->codec_id = codec_id;
-    } else if (codec_id != s->streams[0]->codec->codec_id) {
+    }
+    else if (codec_id != s->streams[0]->codec->codec_id)
+    {
         avpriv_report_missing_feature(s, "Codec change in IEC 61937");
         return AVERROR_PATCHWELCOME;
     }
